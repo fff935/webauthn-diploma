@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>WebAuthn - Безпарольний вхід</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #eef2f7; margin: 0; }
+        .card { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; width: 350px; }
+        h1 { color: #333; font-size: 24px; margin-bottom: 10px; }
+        p { color: #666; margin-bottom: 30px; }
+        button { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.3s; }
+        #btnRegister { background: #007bff; color: white; }
+        #btnLogin { background: #28a745; color: white; }
+        button:hover { opacity: 0.9; transform: translateY(-2px); }
+        #status { margin-top: 20px; font-size: 14px; color: #555; line-height: 1.4; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>WebAuthn Система</h1>
+    <p>Кваліфікаційна робота</p>
+    
+    <button id="btnRegister">1. Реєстрація пристрою</button>
+    <button id="btnLogin">2. Увійти без пароля</button>
+    
+    <div id="status">Натисніть кнопку для початку</div>
+</div>
+
+<script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
+
+<script>
+    const { startRegistration, startAuthentication } = SimpleWebAuthnBrowser;
+    const status = document.getElementById('status');
+
+    // ФУНКЦІЯ РЕЄСТРАЦІЇ
+    document.getElementById('btnRegister').onclick = async () => {
+        status.innerText = 'Отримання параметрів...';
+        try {
+            const resp = await fetch('/generate-registration');
+            const options = await resp.json();
+
+            const attResp = await startRegistration({ optionsJSON: options });
+            
+            const verifyResp = await fetch('/verify-registration', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(attResp),
+            });
+
+            const result = await verifyResp.json();
+            if (result.verified) {
+                status.innerHTML = '<b style="color:green">Пристрій успішно зареєстровано! ✅</b>';
+            }
+        } catch (e) {
+            status.innerHTML = '<b style="color:red">Помилка: ' + e.message + '</b>';
+        }
+    };
+
+    // ФУНКЦІЯ ВХОДУ
+    document.getElementById('btnLogin').onclick = async () => {
+        status.innerText = 'Перевірка пристрою...';
+        try {
+            const resp = await fetch('/generate-authentication');
+            if (!resp.ok) throw new Error('Спочатку треба зареєструватися!');
+            
+            const options = await resp.json();
+
+            const authResp = await startAuthentication({ optionsJSON: options });
+
+            const verifyResp = await fetch('/verify-authentication', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(authResp),
+            });
+
+            const result = await verifyResp.json();
+            if (result.verified) {
+                status.innerHTML = '<h3 style="color:green">Авторизація успішна! <br> Вітаємо в системі! 🔓</h3>';
+            }
+        } catch (e) {
+            status.innerHTML = '<b style="color:red">Помилка входу: ' + e.message + '</b>';
+        }
+    };
+</script>
+
+</body>
+</html>
