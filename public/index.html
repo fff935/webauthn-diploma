@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <title>WebAuthn Safe</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        display: flex;
+        justify-content: center;
+        background: #f0f2f5;
+        padding: 40px;
+      }
+      .card {
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        width: 350px;
+        text-align: center;
+      }
+      button {
+        width: 100%;
+        padding: 12px;
+        margin: 8px 0;
+        cursor: pointer;
+        border-radius: 6px;
+        border: none;
+        font-weight: bold;
+        transition: 0.2s;
+      }
+      #btnRegister { background: #007bff; color: white; }
+      #btnLogin { background: #28a745; color: white; }
+      #photoSection {
+        display: none;
+        margin-top: 20px;
+        border-top: 2px solid #eee;
+        padding-top: 20px;
+      }
+      #gallery img {
+        width: 100%;
+        margin-top: 10px;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+      #status { margin: 15px 0; font-size: 14px; color: #555; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Біометричний Сейф</h1>
+      <div id="status">Потрібна авторизація</div>
+      <button id="btnRegister">1. Реєстрація пристрою</button>
+      <button id="btnLogin">2. Увійти в сейф</button>
+
+      <div id="photoSection">
+        <h3>📂 Твої файли</h3>
+        <input type="file" id="photoInput" />
+        <button onclick="uploadPhoto()" style="background: #6f42c1; color: white">Завантажити фото</button>
+        <div id="gallery"></div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
+    <script>
+      const { startRegistration, startAuthentication } = SimpleWebAuthnBrowser;
+
+      // --- Реєстрація ---
+      document.getElementById("btnRegister").onclick = async () => {
+        try {
+          const resp = await fetch("/generate-registration");
+          const options = await resp.json();
+          const attResp = await startRegistration({ optionsJSON: options });
+          
+          const verify = await fetch("/verify-registration", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(attResp),
+          });
+          
+          const res = await verify.json();
+          if (res.verified) {
+            document.getElementById("status").innerHTML = "<b>✅ Пристрій зареєстровано! Тепер увійдіть.</b>";
+          }
+        } catch (err) {
+          alert("Помилка реєстрації: " + err.message);
+        }
+      };
+
+      // --- Вхід ---
+      document.getElementById("btnLogin").onclick = async () => {
+        try {
+          const resp = await fetch("/generate-authentication");
+          if (!resp.ok) throw new Error(await resp.text());
+          
+          const options = await resp.json();
+          const authResp = await startAuthentication({ optionsJSON: options });
+
+          const verify = await fetch("/verify-authentication", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(authResp),
+          });
+
+          const res = await verify.json();
+          if (res.verified) {
+            document.getElementById("status").innerHTML = "<b>🔓 Сейф відкрито!</b>";
+            document.getElementById("photoSection").style.display = "block";
+            loadPhotos();
+          }
+        } catch (err) {
+          alert("Помилка входу: " + (err.message.includes("error") ? JSON.parse(err.message).error : err.message));
+        }
+      };
+
+      // --- Завантаження фото ---
+      async function uploadPhoto() {
+        const fileInput = document.getElementById("photoInput");
+        if (!fileInput.files[0]) return alert("Виберіть файл!");
+
+        const formData = new FormData();
+        formData.append("photo", fileInput.files[0]);
+
+        try {
+          const resp = await fetch("/upload", { method: "POST", body: formData });
+          if (resp.ok) {
+            fileInput.value = ""; // Очищаємо інпут
+            loadPhotos();
+          } else {
+            alert("Помилка доступу!");
+          }
+        } catch (e) {
+          alert("Помилка завантаження");
+        }
+      }
+
+      // --- Відображення галереї ---
+      async function loadPhotos() {
+        const resp = await fetch("/photos");
+        const files = await resp.json();
+        document.getElementById("gallery").innerHTML = files
+          .map((f) => `<img src="/view-photo/${f}">`)
+          .join("");
+      }
+    </script>
+  </body>
+</html>

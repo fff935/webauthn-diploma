@@ -13,6 +13,7 @@
   "dependencies": {
     "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.3.0",
+    "base64url": "^3.0.1",
     "express": "^5.2.1"
   }
 }
