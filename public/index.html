@@ -2,101 +2,169 @@
 <html lang="uk">
   <head>
     <meta charset="UTF-8" />
-    <title>WebAuthn Safe</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebAuthn Advanced Safe</title>
     <style>
       body {
-        font-family: sans-serif;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         display: flex;
         justify-content: center;
         background: #f0f2f5;
-        padding: 40px;
+        padding: 20px;
+        margin: 0;
       }
       .card {
         background: white;
         padding: 30px;
-        border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        width: 350px;
+        border-radius: 16px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        max-width: 400px;
         text-align: center;
       }
-      button {
+      h1 { color: #1a73e8; font-size: 24px; margin-bottom: 10px; }
+      #status { margin: 15px 0; font-size: 14px; color: #555; min-height: 20px; }
+      
+      .error-text {
+        color: #ea4335;
+        font-weight: bold;
+        background: #fde8e8;
+        padding: 10px;
+        border-radius: 5px;
+        margin: 10px 0;
+      }
+
+      input[type="text"], input[type="file"] {
         width: 100%;
         padding: 12px;
+        margin-bottom: 15px;
+        box-sizing: border-box;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 16px;
+      }
+
+      button {
+        width: 100%;
+        padding: 14px;
         margin: 8px 0;
         cursor: pointer;
-        border-radius: 6px;
+        border-radius: 8px;
         border: none;
         font-weight: bold;
-        transition: 0.2s;
+        font-size: 16px;
+        transition: all 0.3s ease;
       }
-      #btnRegister { background: #007bff; color: white; }
-      #btnLogin { background: #28a745; color: white; }
+
+      #btnRegister { background: #1a73e8; color: white; }
+      #btnLogin { background: #34a853; color: white; }
+      #btnLogout { background: #ea4335; color: white; margin-top: 20px; }
+
       #photoSection {
         display: none;
-        margin-top: 20px;
+        margin-top: 25px;
         border-top: 2px solid #eee;
         padding-top: 20px;
       }
+
+      #gallery {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 15px;
+      }
       #gallery img {
         width: 100%;
-        margin-top: 10px;
+        aspect-ratio: 1/1;
+        object-fit: cover;
         border-radius: 8px;
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
       }
-      #status { margin: 15px 0; font-size: 14px; color: #555; }
+
+      .audit-link {
+        display: none; /* Сховано за замовчуванням */
+        margin: 15px 0;
+        color: #1a73e8;
+        text-decoration: underline;
+        font-size: 14px;
+      }
+
+      @media (max-width: 480px) {
+        .card { border-radius: 0; height: 100vh; max-width: 100%; }
+        #gallery { grid-template-columns: 1fr; }
+      }
     </style>
   </head>
   <body>
     <div class="card">
       <h1>Біометричний Сейф</h1>
       <div id="status">Потрібна авторизація</div>
-      <button id="btnRegister">1. Реєстрація пристрою</button>
-      <button id="btnLogin">2. Увійти в сейф</button>
+
+      <input type="text" id="username" placeholder="Введіть ваше ім'я..." />
+      <button id="btnRegister">1. Реєстрація (новий акаунт)</button>
+      <button id="btnLogin">2. Увійти через Біометрію</button>
 
       <div id="photoSection">
-        <h3>📂 Твої файли</h3>
-        <input type="file" id="photoInput" />
-        <button onclick="uploadPhoto()" style="background: #6f42c1; color: white">Завантажити фото</button>
+        <h3>Твої захищені файли</h3>
+        <input type="file" id="photoInput" accept="image/jpeg,image/png" />
+        <button onclick="uploadPhoto()" style="background: #8e44ad; color: white">Завантажити фото</button>
         <div id="gallery"></div>
+        <a href="/audit-log" target="_blank" class="audit-link">📊 Переглянути журнал аудиту (Admin)</a>
+        <button id="btnLogout">Вийти з акаунта</button>
       </div>
     </div>
 
     <script src="https://unpkg.com/@simplewebauthn/browser/dist/bundle/index.umd.min.js"></script>
     <script>
       const { startRegistration, startAuthentication } = SimpleWebAuthnBrowser;
+      const statusLine = document.getElementById("status");
 
-      // --- Реєстрація ---
+      const getUsername = () => document.getElementById("username").value.trim();
+
+      function showStatus(message, isError = false) {
+        statusLine.innerHTML = isError ? `<div class="error-text"> ${message}</div>` : `<div>${message}</div>`;
+      }
+
+      // --- РЕЄСТРАЦІЯ ---
       document.getElementById("btnRegister").onclick = async () => {
+        const user = getUsername();
+        if (!user) return showStatus("Введіть ім'я!", true);
+
         try {
-          const resp = await fetch("/generate-registration");
+          const resp = await fetch(`/generate-registration?username=${user}`);
+          if (!resp.ok) throw new Error(await resp.text());
+          
           const options = await resp.json();
           const attResp = await startRegistration({ optionsJSON: options });
-          
-          const verify = await fetch("/verify-registration", {
+
+          const verify = await fetch(`/verify-registration?username=${user}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(attResp),
           });
-          
+
           const res = await verify.json();
           if (res.verified) {
-            document.getElementById("status").innerHTML = "<b>✅ Пристрій зареєстровано! Тепер увійдіть.</b>";
+            showStatus(`Успіх! ${user} зареєстрований. Тепер увійдіть.`);
           }
         } catch (err) {
-          alert("Помилка реєстрації: " + err.message);
+          showStatus(err.message, true);
         }
       };
 
-      // --- Вхід ---
+      // --- ВХІД ---
       document.getElementById("btnLogin").onclick = async () => {
+        const user = getUsername();
+        if (!user) return showStatus("Введіть ім'я!", true);
+
         try {
-          const resp = await fetch("/generate-authentication");
+          const resp = await fetch(`/generate-authentication?username=${user}`);
           if (!resp.ok) throw new Error(await resp.text());
-          
+
           const options = await resp.json();
           const authResp = await startAuthentication({ optionsJSON: options });
 
-          const verify = await fetch("/verify-authentication", {
+          const verify = await fetch(`/verify-authentication?username=${user}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(authResp),
@@ -104,44 +172,62 @@
 
           const res = await verify.json();
           if (res.verified) {
-            document.getElementById("status").innerHTML = "<b>🔓 Сейф відкрито!</b>";
+            showStatus(`Вітаємо, <b>${user}</b>!`);
             document.getElementById("photoSection").style.display = "block";
+            
+            // Показуємо посилання на логи тільки для Admin
+            if (user.toLowerCase() === 'admin') {
+              document.querySelector(".audit-link").style.display = "block";
+            }
+
+            document.getElementById("username").style.display = "none";
+            document.getElementById("btnRegister").style.display = "none";
+            document.getElementById("btnLogin").style.display = "none";
             loadPhotos();
           }
         } catch (err) {
-          alert("Помилка входу: " + (err.message.includes("error") ? JSON.parse(err.message).error : err.message));
+          showStatus("Помилка входу: " + err.message, true);
         }
       };
 
-      // --- Завантаження фото ---
       async function uploadPhoto() {
         const fileInput = document.getElementById("photoInput");
-        if (!fileInput.files[0]) return alert("Виберіть файл!");
+        const user = getUsername();
+        if (!fileInput.files[0]) return showStatus("Оберіть файл!", true);
 
         const formData = new FormData();
         formData.append("photo", fileInput.files[0]);
 
         try {
-          const resp = await fetch("/upload", { method: "POST", body: formData });
+          const resp = await fetch("/upload", {
+            method: "POST",
+            body: formData,
+            headers: { "x-user": user },
+          });
+
           if (resp.ok) {
-            fileInput.value = ""; // Очищаємо інпут
+            fileInput.value = "";
             loadPhotos();
           } else {
-            alert("Помилка доступу!");
+            showStatus(await resp.text(), true);
           }
-        } catch (e) {
-          alert("Помилка завантаження");
-        }
+        } catch (e) { showStatus("Помилка завантаження", true); }
       }
 
-      // --- Відображення галереї ---
       async function loadPhotos() {
-        const resp = await fetch("/photos");
-        const files = await resp.json();
-        document.getElementById("gallery").innerHTML = files
-          .map((f) => `<img src="/view-photo/${f}">`)
-          .join("");
+        try {
+          const resp = await fetch("/photos");
+          const files = await resp.json();
+          const gallery = document.getElementById("gallery");
+          gallery.innerHTML = files.length === 0 ? "<p>Сейф порожній</p>" : 
+            files.map((f) => `<img src="/view-photo/${f}">`).join("");
+        } catch (e) { console.error("Помилка галереї"); }
       }
+
+      document.getElementById("btnLogout").onclick = async () => {
+        await fetch("/logout", { method: "POST" });
+        location.reload();
+      };
     </script>
   </body>
 </html>

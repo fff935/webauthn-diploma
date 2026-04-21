@@ -1,0 +1,60 @@
+/* --- АДАПТИВНІСТЬ ДЛЯ РІЗНИХ ЕКРАНІВ --- */
+
+/* Планшети та невеликі ноутбуки (ширина екрану до 768px) */
+@media (max-width: 768px) {
+  .container {
+    width: 90%;
+    margin: 20px auto;
+    padding: 20px;
+  }
+  
+  #photo-gallery {
+    grid-template-columns: repeat(2, 1fr); /* 2 фотки в ряд на планшеті */
+  }
+}
+
+/* Мобільні телефони (ширина екрану до 480px) */
+@media (max-width: 480px) {
+  body {
+    font-size: 14px;
+    padding: 10px;
+  }
+
+  .container {
+    width: 100%;
+    margin: 10px auto;
+    padding: 15px;
+    box-shadow: none; /* На мобільному тіні часто заважають */
+    border-radius: 10px;
+  }
+
+  input[type="text"] {
+    width: 100%;
+    font-size: 16px; /* Щоб iPhone не наближав екран при вводі тексту */
+  }
+
+  button {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    margin-bottom: 10px;
+  }
+
+  #photo-gallery {
+    grid-template-columns: 1fr; /* 1 фотка в ряд на телефоні (одна під одною) */
+    gap: 15px;
+  }
+
+  .photo-item img {
+    border-radius: 8px;
+  }
+}
+
+.error-text {
+  color: #ea4335;
+  font-weight: bold;
+  background: #fde8e8;
+  padding: 10px;
+  border-radius: 5px;
+  margin: 10px 0;
+}
